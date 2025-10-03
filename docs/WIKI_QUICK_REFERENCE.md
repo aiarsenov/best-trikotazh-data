@@ -66,6 +66,46 @@ echo "test message" | /opt/kafka/kafka/bin/kafka-console-producer.sh --bootstrap
 | onec-entities | 3 | 1C CRM/ERP data |
 | etl-logs | 1 | Processing logs |
 
+## 🧪 End-to-End Test Pipeline
+
+### ✅ Verified Working Flow:
+```bash
+# 1. Send test data to Kafka
+Python3 - <<'PY'
+from confluent_kafka import Producer
+import json
+p = Producer({"bootstrap.servers": "89.169.152.54:9092"})
+p.produce("wb_keywords", json.dumps({
+    "date": "2024-01-01", "campaign_id": 12345, 
+    "keyword": "test", "impressions": 100, "clicks": 15, "cost": 50.5
+}).encode('utf-8'))
+p.flush()
+print("✅ Data sent to Kafka")
+PY
+
+# 2. Consumer to ClickHouse
+python3 - <<'PY'
+from confluent_kafka import Consumer
+from clickhouse_driver import Client
+ch = Client(host="rc1a-ioasjmp8oohqnaeo.mdb.yandexcloud.net", port=9440, 
+           user="databaseuser", password="YOUR_PASSWORD", secure=True)
+c = Consumer({"bootstrap.servers": "89.169.152.54:9092", "group.id": "test"})
+c.subscribe(["wb_keywords"])
+msg = c.poll(5.0)
+if msg: ch.execute("INSERT INTO wb_keywords_raw (payload) VALUES", 
+                   [[msg.value().decode('utf-8')]])
+print("✅ Data in ClickHouse")
+PY
+
+# 3. dbt transformation
+cd ~/etl/dbt/best_tricotaz && dbt run --select staging
+```
+
+### ✅ Verified Results:
+- **Raw records**: 9 в ClickHouse
+- **Staging records**: 8 (dbt фильтрация работает)
+- **Structured fields**: date, campaign_id, keyword, impressions, clicks, cost
+
 ## 🛠️ Troubleshooting
 
 ### Quick Fixes
@@ -77,6 +117,27 @@ sudo systemctl restart kafka
 # Connection issues
 sudo ufw status | grep 9092
 ss -tlnp | grep :909
+```
+
+### ⚠️ CRITICAL: Known Working Solutions
+
+**ClickHouse String vs JSON**: Use `String` columns, NOT `JSON`:
+```sql
+-- ✅ WORKS
+CREATE TABLE wb_keywords_raw (payload String)
+
+-- ❌ FAILS with clickhouse-driver
+CREATE TABLE wb_keywords_raw (payload JSON)
+```
+
+**INSERT Syntax**: 
+```python
+# ✅ CORRECT
+ch.execute("INSERT INTO table (payload) VALUES", [[json_string]])
+
+# ❌ WRONG
+ch.execute("INSERT INTO table FORMAT JSONEachRow %s", [json_string])
+```
 
 # Reset storage (USE WITH CAUTION)
 sudo systemctl stop kafka

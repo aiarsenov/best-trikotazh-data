@@ -29,7 +29,7 @@ ETL pipeline for processing tricot clothing data from multiple marketplaces and 
 
 ### Technical Stack
 - **Streaming**: Apache Kafka KRaft 3.7.1
-- **Database**: Yandex ClickHouse (external, TLS:8443)
+- **Database**: Yandex ClickHouse (external, TLS native:9440, HTTP:8443)
 - **Orchestration**: Apache Airflow
 - **Transformation**: dbt
 - **Monitoring**: Prometheus + Grafana
@@ -588,6 +588,49 @@ cat /opt/kafka/kafka/config/kraft/server.properties | grep advertised.listeners
 
 # ClickHouse native TLS (9440)
 clickhouse-client --host <host> --port 9440 --secure -u <user> --password '<pwd>' -d <db> --query "SELECT 1"
+```
+
+### 🚨 РЕШЕННЫЕ ПРОБЛЕМЫ
+
+#### ClickHouse JSON Columns Issue
+**Проблема**: clickhouse-driver не работает с типом данных `JSON` в ClickHouse
+
+**Решение**: Использовать тип `String` вместо `JSON`:
+```sql
+-- ❌ НЕ работает
+CREATE TABLE wb_keywords_raw (payload JSON)
+
+-- ✅ Работает корректно
+CREATE TABLE wb_keywords_raw (payload String)
+```
+
+#### clickhouse-driver INSERT Syntax
+**Проблема**: Неправильный синтаксис для вставки данных
+```python
+# ❌ Неправильно
+ch.execute("INSERT INTO table FORMAT JSONEachRow %s", [json_string])
+
+# ✅ Правильно для String колонок
+ch.execute("INSERT INTO wb_keywords_raw (payload) VALUES", [[json_string]])
+```
+
+#### Kafka Producer/Consumer Connectivity
+**Проблема**: Проблемы с подключением external клиентов к Kafka
+
+**Решение**: Правильная конфигурация advertised.listeners:
+```properties
+# Final working configuration:
+advertised.listeners=PLAINTEXT://89.169.152.54:9092
+listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:19092
+controller.quorum.voters=1@0.0.0.0:19092
+```
+
+#### dbt JSON Parsing
+**Проблема**: Парсинг JSON в staging моделях
+```sql
+-- ✅ Рабочий вариант
+SELECT JSON_VALUE(payload, '$.field') FROM {{ source('raw','wb_keywords_raw') }}
+WHERE isValidJSON(payload) AND payload != ''
 ```
 
 #### Performance Issues

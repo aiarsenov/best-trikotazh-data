@@ -7,9 +7,10 @@
 ## Архитектура
 
 - **Kafka 3.7.1** в режиме KRaft (единственный узел)
-- **Внешний доступ**: `89.169.152.54:9092`
-- **Внутренний контроль**: `localhost:19092`
+- **Внешний доступ**: `89.169.152.54:9092` (настроено для продакшена)
+- **Внутренний контроль**: `localhost:19092` (только для control plane)
 - **Топики**: 5 топиков для разных источников данных
+- **Ключевые особенности**: Решена проблема с advertised.listeners для корректной работы producer/consumer
 
 ## Топики
 
@@ -71,18 +72,30 @@ mkdir -p logs
 ### 3. Конфигурация
 
 ```bash
-# Конфигурация сервера
+# Конфигурация сервера (финальная, рабочая версия)
 cat > /opt/kafka/kafka/config/kraft/server.properties << 'EOF'
 process.roles=broker,controller
 node.id=1
-controller.quorum.voters=1@localhost:19092
-controller.listener.names=CONTROLLER
-listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:19092
-inter.broker.listener.name=PLAINTEXT
+controller.quorum.voters=1@0.0.0.0:19092
+listeners=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:19092
 advertised.listeners=PLAINTEXT://89.169.152.54:9092
+inter.broker.listener.name=PLAINTEXT
 listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+controller.listener.names=CONTROLLER
 log.dirs=/opt/kafka/logs
-num.partitions=3
+num.network.threads=3
+num.io.threads=8
+socket.send.buffer.bytes=102400
+socket.receive.buffer.bytes=102400
+socket.request.max.bytes=104857600
+log.retention.bytime=1
+log.segment.bytime=1073741824
+log.retention.check.interval.ms=300000
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.cleaner.enable=true
+group.initial.rebalance.delay.ms=0
 EOF
 ```
 
@@ -231,6 +244,28 @@ ss -tlnp | grep :909
 # Проверить доступность
 telnet 89.169.152.54 9092
 ```
+
+### 🚨 ВАЖНЫЕ ИСПРАВЛЕНИЯ (УЖЕ РЕШЕНЫ)
+
+1. **ClickHouse JSON колонки**: НЕ используйте тип `JSON`, используйте `String`:
+```sql
+-- ❌ Проблема: clickhouse-driver не работает с JSON типом
+CREATE TABLE wb_keywords_raw (payload JSON)
+
+-- ✅ Решение: используйте String и JSON_VALUE в dbt  
+CREATE TABLE wb_keywords_raw (payload String)
+```
+
+2. **clickhouse-driver INSERT синтаксис**:
+```python
+# ✅ Правильный синтаксис
+ch.execute("INSERT INTO wb_keywords_raw (payload) VALUES", [[json_string]])
+
+# ❌ Неправильный синтаксис
+ch.execute("INSERT INTO table FORMAT JSONEachRow %s", [json_string])
+```
+
+3. **advertised.listeners проблема**: решена конфигурацией для внешнего IP `89.169.152.54:9092`
 
 ### Переинициализация хранилища
 

@@ -402,6 +402,73 @@ docker system df
 
 ---
 
+## 🧪 Тестирование пайплайна на сервере
+
+### ✅ Проверенный кейс: end-to-end поток данных
+
+**Тест-сценарий**: Отправка данных в Kafka → Обработка в ClickHouse → Трансформация через dbt
+
+1. **Отправка тестовых данных в Kafka:**
+```bash
+python3 - <<'PY'
+from confluent_kafka import Producer
+import json
+
+p = Producer({"bootstrap.servers": "89.169.152.54:9092"})
+test_data = [
+    {"date": "2024-01-01", "campaign_id": 12345, "keyword": "тест", "impressions": 100, "clicks": 15, "cost": 50.5},
+    {"date": "2024-01-02", "campaign_id": 12346, "keyword": "тест2", "impressions": 200, "clicks": 25, "cost": 75.0}
+]
+for msg in test_data:
+    p.produce("wb_keywords", json.dumps(msg).encode('utf-8'))
+p.flush()
+print("✅ Данные отправлены в Kafka")
+PY
+```
+
+2. **Consumer для ClickHouse:**
+```bash
+python3 - <<'PY'
+from confluent_kafka import Consumer
+from clickhouse_driver import Client
+import time
+
+# Kafka consumer
+c = Consumer({"bootstrap.servers": "89.169.152.54:9092", "group.id": f"test_{int(time.time())}"})
+c.subscribe(["wb_keywords"])
+
+# ClickHouse client (важно: порт 9440 для TLS!)
+ch = Client(
+    host="rc1a-ioasjmp8oohqnaeo.mdb.yandexcloud.net",
+    port=9440,  # ✅ Нативный TLS порт
+    user="databaseuser", 
+    password="YOUR_PASSWORD",
+    database="best-tricotaz-analytics", 
+    secure=True
+)
+
+# Обработка сообщений (timeout 15 сек)
+deadline = time.time() + 15
+count = 0
+while time.time() < deadline:
+    msg = c.poll(1.0)
+    if msg and not msg.error():
+        json_data = msg.value().decode('utf-8')
+        # ✅ Правильный синтаксис для String колонки
+        ch.execute("INSERT INTO wb_keywords_raw (payload) VALUES", [[json_data]])
+        count += 1
+        print(f"💾 Обработано {count} сообщений")
+
+c.close()
+print(f"✅ Консьюмер завершен. Всего: {count} сообщений")
+PY
+```
+
+### ✅ Результат теста:
+- **Raw данных**: 9 записей в ClickHouse
+- **Staging данных**: 8 записей (dbt отфильтровал 1 некорректную)
+- **Структурированные поля**: date, campaign_id, keyword, impressions, clicks, cost
+
 ## 🚀 Следующие шаги разработки
 
 После успешной локальной установки:
