@@ -15,6 +15,10 @@ sudo bash provision/kafka-install.sh
 sudo systemctl start|stop|restart|status kafka
 sudo journalctl -u kafka -f
 
+# Airflow
+sudo systemctl start|stop|restart airflow-scheduler airflow-webserver
+sudo systemctl status --no-pager -l airflow-webserver
+
 # Topic management
 /opt/kafka/kafka/bin/kafka-topics.sh --bootstrap-server 89.169.152.54:9092 --list
 /opt/kafka/kafka/bin/kafka-topics.sh --bootstrap-server 89.169.152.54:9092 --describe --topic TOPIC_NAME

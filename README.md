@@ -97,6 +97,33 @@ export PYTHONPATH=~/etl
 python -m app.producers.wb
 ```
 
+### 6. Airflow (оркестрация)
+Установка и запуск с Postgres + LocalExecutor:
+```bash
+# в venv
+pip install "apache-airflow==2.9.*" \
+  --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt
+pip install 'psycopg2-binary<2.10'
+
+# Postgres (локально)
+sudo apt -y install postgresql postgresql-contrib
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
+CREATE USER airflow WITH PASSWORD 'STRONG_DB_PASS';
+CREATE DATABASE airflow OWNER airflow;
+GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow;
+SQL
+
+# ENV для Airflow
+export AIRFLOW_HOME=/home/<USER>/airflow
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN='postgresql+psycopg2://airflow:STRONG_DB_PASS@localhost:5432/airflow'
+export AIRFLOW__CORE__EXECUTOR=LocalExecutor
+
+airflow db migrate && airflow users create \
+  --username admin --password 'STRONG_PASS' \
+  --firstname Vas --lastname Ops --role Admin --email you@example.com
+```
+Systemd-примеры и DAG’и см. в `docs/WIKI_DOCUMENTATION.md`.
+
 ## 📚 Документация
 
 - [🔧 Kafka Setup](./docs/KAFKA_SETUP.md) - Установка и настройка Apache Kafka KRaft

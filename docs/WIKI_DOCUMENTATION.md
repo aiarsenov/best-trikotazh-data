@@ -322,6 +322,75 @@ sudo systemctl enable kafka
 
 # Check service health
 sudo systemctl is-active kafka
+
+# Airflow services (scheduler/webserver)
+sudo systemctl start airflow-scheduler airflow-webserver
+sudo systemctl restart airflow-scheduler airflow-webserver
+sudo systemctl status --no-pager -l airflow-webserver
+```
+
+### Airflow Installation (Postgres + LocalExecutor)
+```bash
+# venv
+pip install "apache-airflow==2.9.*" \
+  --constraint https://raw.githubusercontent.com/apache/airflow/constraints-2.9.3/constraints-3.12.txt
+pip install 'psycopg2-binary<2.10'
+
+# Postgres
+sudo apt -y install postgresql postgresql-contrib
+sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
+CREATE USER airflow WITH PASSWORD 'STRONG_DB_PASS';
+CREATE DATABASE airflow OWNER airflow;
+GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow;
+SQL
+
+export AIRFLOW_HOME=/home/<USER>/airflow
+export AIRFLOW__DATABASE__SQL_ALCHEMY_CONN='postgresql+psycopg2://airflow:STRONG_DB_PASS@localhost:5432/airflow'
+export AIRFLOW__CORE__EXECUTOR=LocalExecutor
+airflow db migrate
+airflow users create --username admin --password 'STRONG_PASS' --firstname Vas --lastname Ops --role Admin --email you@example.com
+```
+
+### Airflow Systemd Units
+```ini
+[Unit]
+Description=Airflow Scheduler
+After=network.target
+
+[Service]
+User=<USER>
+Environment=AIRFLOW_HOME=/home/<USER>/airflow
+Environment=PATH=/home/<USER>/etl/.venv/bin
+Environment=PYTHONPATH=/home/<USER>/etl
+Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:STRONG_DB_PASS@localhost:5432/airflow
+Environment=AIRFLOW__CORE__EXECUTOR=LocalExecutor
+ExecStart=/home/<USER>/etl/.venv/bin/airflow scheduler
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```ini
+[Unit]
+Description=Airflow Webserver
+After=network.target
+
+[Service]
+User=<USER>
+Environment=AIRFLOW_HOME=/home/<USER>/airflow
+Environment=PATH=/home/<USER>/etl/.venv/bin
+Environment=PYTHONPATH=/home/<USER>/etl
+Environment=AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:STRONG_DB_PASS@localhost:5432/airflow
+Environment=AIRFLOW__CORE__EXECUTOR=LocalExecutor
+ExecStart=/home/<USER>/etl/.venv/bin/airflow webserver --port 8080
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
 ```
 
 #### Viewing Logs
