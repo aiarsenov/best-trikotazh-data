@@ -48,6 +48,11 @@ echo "test message" | /opt/kafka/kafka/bin/kafka-console-producer.sh --bootstrap
 - **User**: dataops
 - **Home**: /opt/kafka
 
+### ClickHouse Access
+- **TLS (native)**: host `rc1a-ioasjmp8oohqnaeo.mdb.yandexcloud.net`, port `9440` (clickhouse-client/clickhouse-driver)
+- **HTTPS**: port `8443` (curl/clickhouse-connect)
+- Используйте `verify=true` и корневой сертификат Yandex Cloud.
+
 ### Topics Overview
 | Topic | Partitions | Purpose |
 |-------|------------|---------|

@@ -44,6 +44,59 @@ sudo bash provision/kafka-install.sh
 #### Или пошагово согласно документации
 См. подробные инструкции: [📚 Kafka Setup Guide](./docs/KAFKA_SETUP.md)
 
+### 3. Переменные окружения (.env)
+Создайте файл `~/etl/.env` на сервере (не коммить в git):
+```dotenv
+# Kafka
+KAFKA_BOOTSTRAP=89.169.152.54:9092
+
+# ClickHouse (Yandex Managed)
+CLICKHOUSE_HOST=rc1a-ioasjmp8oohqnaeo.mdb.yandexcloud.net
+CLICKHOUSE_PORT=9440
+CLICKHOUSE_USERNAME=databaseuser
+CLICKHOUSE_PASSWORD=REPLACE_ME
+CLICKHOUSE_DATABASE=best-tricotaz-analytics
+CLICKHOUSE_SECURE=true
+CLICKHOUSE_VERIFY=true
+
+# API tokens
+WB_TOKEN=REPLACE_ME
+OZON_CLIENT_ID=REPLACE_ME
+OZON_API_KEY=REPLACE_ME
+
+# RPS (квоты)
+WB_RPS=5
+OZON_RPS=3
+ONEC_RPS=2
+
+# Общие
+DEFAULT_SINCE=2024-01-01
+```
+
+Важно: нативный порт ClickHouse для TLS — `9440`. Порт `8443` — для HTTP.
+
+### 4. FastAPI UI (логи/метрики)
+В проекте есть лёгкий UI на FastAPI:
+```bash
+# ручной запуск
+export PYTHONPATH=~/etl
+uvicorn app.web.main:app --host 0.0.0.0 --port 8000
+```
+Через systemd (рекомендуется) см. [полную wiki](./docs/WIKI_DOCUMENTATION.md#service-management).
+
+### 5. Producers/Consumers
+Примеры модулей:
+```bash
+# Consumer WB (указывает целевую таблицу CH, существующую у вас)
+export CH_TARGET_WB_KEYWORDS=wb_adverts_stats
+export PYTHONPATH=~/etl
+python -m app.consumers.wb_keywords_consumer
+
+# Producer WB (читает WB API, соблюдает квоты, пишет в Kafka)
+export PYTHONPATH=~/etl
+python -m app.producers.wb
+```
+
 ## 📚 Документация
 
 - [🔧 Kafka Setup](./docs/KAFKA_SETUP.md) - Установка и настройка Apache Kafka KRaft

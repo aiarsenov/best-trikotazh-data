@@ -76,7 +76,7 @@ External APIs → Python Producers → Kafka Topics → Python Consumers → Cli
 
 #### Storage & Analytics
 - **Yandex ClickHouse**: Columnar analytics database
-  - Connections: TLS secured (port 8443)
+  - Connections: TLS secured (native 9440; HTTP 8443)
   - Tables: staging and marts layers
   - Partitioning: By date and source system
 
@@ -288,10 +288,12 @@ sudo systemctl status kafka
 | `etl-logs` | 1 | Processing logs and errors | ETL Apps |
 
 ### Network Configuration
-- **External Access**: `89.169.152.54:9092`
-- **Internal Controller**: `localhost:19092`
-- **Security**: PLAINTEXT (for internal networks)
-- **Firewall**: Port 9092 opened for external connections
+- **Kafka External**: `89.169.152.54:9092`
+- **Kafka Controller**: `localhost:19092`
+- **Security**: PLAINTEXT (internal)
+- **Firewall**: 9092/tcp opened
+- **ClickHouse TLS (native)**: port `9440` (recommended with clickhouse-driver)
+- **ClickHouse HTTPS**: port `8443` (curl/http clients)
 
 ### Environment Variables
 ```bash
@@ -372,7 +374,7 @@ sudo journalctl -u kafka --no-pager -S "1 hour ago"
 pip install kafka-python
 
 # Additional dependencies
-pip install clickhouse-connector pandas numpy requests
+pip install clickhouse-driver clickhouse-connector pandas numpy requests
 ```
 
 #### Producer Configuration
@@ -514,6 +516,9 @@ cat /opt/kafka/kafka/config/kraft/server.properties | grep advertised.listeners
 
 # Test local connectivity
 /opt/kafka/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+# ClickHouse native TLS (9440)
+clickhouse-client --host <host> --port 9440 --secure -u <user> --password '<pwd>' -d <db> --query "SELECT 1"
 ```
 
 #### Performance Issues

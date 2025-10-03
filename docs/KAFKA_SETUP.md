@@ -155,6 +155,13 @@ sudo systemctl status kafka
 
 # Проверка портов
 ss -tlnp | grep :909
+
+# Quick consumer test (assign from beginning)
+/opt/kafka/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server 89.169.152.54:9092 \
+  --topic wb-keywords \
+  --from-beginning \
+  --timeout-ms 5000
 ```
 
 ## Подключение клиентов
@@ -237,6 +244,11 @@ sudo rm -rf /opt/kafka/logs/*
 sudo chown -R dataops:dataops /opt/kafka
 sudo systemctl start kafka
 ```
+
+## ClickHouse подключение (важно)
+- Нативный TLS порт: `9440` (рекомендуется с `clickhouse-driver`)
+- HTTP TLS порт: `8443` (для `clickhouse-connect`/curl)
+Установите корневой сертификат Yandex Cloud и используйте `verify=true`.
 
 ## Следующие шаги
 

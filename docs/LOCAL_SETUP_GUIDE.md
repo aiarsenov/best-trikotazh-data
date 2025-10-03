@@ -111,6 +111,8 @@ docker exec kafka kafka-console-consumer --bootstrap-server localhost:9092 --top
 ```bash
 # Установка клиента Kafka
 pip install kafka-python pandas requests clickhouse-connector
+# Для подключения к Managed ClickHouse через нативный протокол используйте clickhouse-driver (порт 9440):
+pip install clickhouse-driver
 
 # Создайте тестовый файл test_kafka.py
 cat > test_kafka.py << 'EOF'
